@@ -556,6 +556,9 @@ static const struct {
 
 static void yy_accept(yyParser*);  /* Forward Declaration */
 
+
+static int var_id;              /* Amount to pop the stack */
+
 /*
 ** Perform a reduce action and the shift that must immediately
 ** follow the reduce.
@@ -756,6 +759,9 @@ void Parse(
   do{
     yyact = yy_find_shift_action(yypParser,(YYCODETYPE)yymajor);
     if( yyact<YYNSTATE ){
+      yyminorunion.id = ++var_id;
+      printf("\nYYMINORTYPE v%i; ", var_id);
+      printf("v%i.yy0.n = \"%s\"; v%i.yy0.n = %d;", var_id, yyminorunion.yy0.z, var_id, yyminorunion.yy0.n);
       yy_shift(yypParser,yyact,yymajor,&yyminorunion);
       yypParser->yyerrcnt--;
       yymajor = YYNOCODE;

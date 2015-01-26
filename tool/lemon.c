@@ -3466,6 +3466,56 @@ PRIVATE void translate_code(struct lemon *lemp, struct rule *rp){
     append_str(cp, 1, 0, 0);
   } /* End loop */
 
+  if( lhsused ){
+    /*You can have only one LHS alias for a given rule */
+    append_str("yygotominor.id = ++var_id; printf(\"\\nYYMINORTYPE v%i; \", var_id); ",0,0,0);
+  }
+  for(cp=(char *)rp->code; *cp; cp++){
+    if( isalpha(*cp) && (cp==rp->code || (!isalnum(cp[-1]) && cp[-1]!='_')) ){
+      char saved;
+      for(xp= &cp[1]; isalnum(*xp) || *xp=='_'; xp++);
+      saved = *xp;
+      *xp = 0;
+      if( rp->lhsalias && strcmp(cp,rp->lhsalias)==0 ){
+        append_str("printf(\"v%i.yy%d\",var_id);",0,rp->lhs->dtnum,0);
+        cp = xp;
+        lhsused = 1;
+      }else{
+        for(i=0; i<rp->nrhs; i++){
+          if( rp->rhsalias[i] && strcmp(cp,rp->rhsalias[i])==0 ){
+            if( cp!=rp->code && cp[-1]=='@' ){
+              /* If the argument is of the form @X then substituted
+              ** the token number of X, not the value of X */
+              append_str("printf(\"%i\",yymsp[%d].major);",0,i-rp->nrhs+1,0);
+            }else{
+              struct symbol *sp = rp->rhs[i];
+              int dtnum;
+              if( sp->type==MULTITERMINAL ){
+                dtnum = sp->subsym[0]->dtnum;
+              }else{
+                dtnum = sp->dtnum;
+              }
+              append_str("printf(\"v%i.yy%d\",yymsp[%d].minor.id);",0,dtnum,i-rp->nrhs+1);
+            }
+            cp = xp;
+            used[i] = 1;
+            break;
+          }
+        }
+      }
+      *xp = saved;
+    }
+    append_str("printf(\"%s\",\"",0,0,0);
+    switch(*cp) {
+      case '@': break; /* Ignore @, they are used in the grammar. */
+      case '"': append_str("\\\"",0,0,0); break;
+      case '\n': append_str("\\n",0,0,0); break;
+      case '\\': append_str("\\\\",0,0,0); break;
+      default: append_str(cp,1,0,0);
+    }
+    append_str("\");",0,0,0);
+  } /* End loop */
+
   /* Check to make sure the LHS has been used */
   if( rp->lhsalias && !lhsused ){
     ErrorMsg(lemp->filename,rp->ruleline,
@@ -3629,7 +3679,7 @@ void print_stack_union(
   fprintf(out,"#define %sTOKENTYPE %s\n",name,
     lemp->tokentype?lemp->tokentype:"void*");  lineno++;
   if( mhflag ){ fprintf(out,"#endif\n"); lineno++; }
-  fprintf(out,"typedef union {\n"); lineno++;
+  fprintf(out,"typedef struct { union {\n"); lineno++;
   fprintf(out,"  int yyinit;\n"); lineno++;
   fprintf(out,"  %sTOKENTYPE yy0;\n",name); lineno++;
   for(i=0; i<arraysize; i++){
@@ -3642,7 +3692,7 @@ void print_stack_union(
   }
   free(stddt);
   free(types);
-  fprintf(out,"} YYMINORTYPE;\n"); lineno++;
+  fprintf(out,"}; int id;} YYMINORTYPE;\n"); lineno++;
   *plineno = lineno;
 }
 
