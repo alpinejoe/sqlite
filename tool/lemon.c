@@ -3468,7 +3468,7 @@ PRIVATE void translate_code(struct lemon *lemp, struct rule *rp){
 
   if( lhsused ){
     /*You can have only one LHS alias for a given rule */
-    append_str("yygotominor.id = ++var_id; printf(\"\\nYYMINORTYPE v%i; \", var_id); ",0,0,0);
+    append_str("yygotominor.id = ++var_id; printf(\"\\nYYMINORTYPE v%i; {\", var_id); ",0,0,0);
   }
   for(cp=(char *)rp->code; *cp; cp++){
     if( isalpha(*cp) && (cp==rp->code || (!isalnum(cp[-1]) && cp[-1]!='_')) ){
@@ -3515,6 +3515,9 @@ PRIVATE void translate_code(struct lemon *lemp, struct rule *rp){
     }
     append_str("\");",0,0,0);
   } /* End loop */
+  if( lhsused ){
+    append_str("printf(\"}\");",0,0,0);
+  }
 
   /* Check to make sure the LHS has been used */
   if( rp->lhsalias && !lhsused ){
