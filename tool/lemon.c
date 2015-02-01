@@ -3466,10 +3466,13 @@ PRIVATE void translate_code(struct lemon *lemp, struct rule *rp){
     append_str(cp, 1, 0, 0);
   } /* End loop */
 
+#define NEW_LINE_INDETATION "\n        "
   if( lhsused ){
     /*You can have only one LHS alias for a given rule */
-    append_str("yygotominor.id = ++var_id; printf(\"\\nYYMINORTYPE v%i; {\", var_id); ",0,0,0);
+    append_str(NEW_LINE_INDETATION "yygotominor.id = ++var_id;"
+      NEW_LINE_INDETATION "printf(\"\\nYYMINORTYPE v%i; {\", var_id);",0,0,0);
   }
+  append_str(NEW_LINE_INDETATION "printf(\"%s\",\"",0,0,0);
   for(cp=(char *)rp->code; *cp; cp++){
     if( isalpha(*cp) && (cp==rp->code || (!isalnum(cp[-1]) && cp[-1]!='_')) ){
       char saved;
@@ -3477,7 +3480,8 @@ PRIVATE void translate_code(struct lemon *lemp, struct rule *rp){
       saved = *xp;
       *xp = 0;
       if( rp->lhsalias && strcmp(cp,rp->lhsalias)==0 ){
-        append_str("printf(\"v%i.yy%d\",var_id);",0,rp->lhs->dtnum,0);
+        append_str("\");" NEW_LINE_INDETATION "printf(\"v%i.yy%d\",var_id);"
+          NEW_LINE_INDETATION "printf(\"%s\",\"",0,rp->lhs->dtnum,0);
         cp = xp;
         lhsused = 1;
       }else{
@@ -3486,7 +3490,8 @@ PRIVATE void translate_code(struct lemon *lemp, struct rule *rp){
             if( cp!=rp->code && cp[-1]=='@' ){
               /* If the argument is of the form @X then substituted
               ** the token number of X, not the value of X */
-              append_str("printf(\"%i\",yymsp[%d].major);",0,i-rp->nrhs+1,0);
+              append_str("\");" NEW_LINE_INDETATION "printf(\"%i\",yymsp[%d].major);"
+                NEW_LINE_INDETATION "printf(\"%s\",\"",-1,i-rp->nrhs+1,0);
             }else{
               struct symbol *sp = rp->rhs[i];
               int dtnum;
@@ -3495,7 +3500,8 @@ PRIVATE void translate_code(struct lemon *lemp, struct rule *rp){
               }else{
                 dtnum = sp->dtnum;
               }
-              append_str("printf(\"v%i.yy%d\",yymsp[%d].minor.id);",0,dtnum,i-rp->nrhs+1);
+              append_str("\");" NEW_LINE_INDETATION "printf(\"v%i.yy%d\",yymsp[%d].minor.id);"
+                NEW_LINE_INDETATION "printf(\"%s\",\"",0,dtnum,i-rp->nrhs+1);
             }
             cp = xp;
             used[i] = 1;
@@ -3505,18 +3511,18 @@ PRIVATE void translate_code(struct lemon *lemp, struct rule *rp){
       }
       *xp = saved;
     }
-    append_str("printf(\"%s\",\"",0,0,0);
     switch(*cp) {
-      case '@': break; /* Ignore @, they are used in the grammar. */
       case '"': append_str("\\\"",0,0,0); break;
       case '\n': append_str("\\n",0,0,0); break;
       case '\\': append_str("\\\\",0,0,0); break;
       default: append_str(cp,1,0,0);
     }
-    append_str("\");",0,0,0);
   } /* End loop */
   if( lhsused ){
-    append_str("printf(\"}\");",0,0,0);
+    append_str("}\");\n",0,0,0);
+  }
+  else {
+    append_str("\");\n",0,0,0);
   }
 
   /* Check to make sure the LHS has been used */
