@@ -761,7 +761,8 @@ void Parse(
     if( yyact<YYNSTATE ){
       yyminorunion.id = ++var_id;
       printf("\nYYMINORTYPE v%i; ", var_id);
-      printf("v%i.yy0.z = \"%s\"; v%i.yy0.n = %d;", var_id, yyminorunion.yy0.z, var_id, yyminorunion.yy0.n);
+      printf("v%i.yy0.z = \"%.*s\"; v%i.yy0.n = %d;", var_id, yyminorunion.yy0.n,
+        yyminorunion.yy0.z, var_id, yyminorunion.yy0.n);
       yy_shift(yypParser,yyact,yymajor,&yyminorunion);
       yypParser->yyerrcnt--;
       yymajor = YYNOCODE;
