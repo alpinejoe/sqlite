@@ -373,6 +373,10 @@ int sqlite3GetToken(const unsigned char *z, int *tokenType){
   return 1;
 }
 
+#ifdef ENABLE_COMPILED_SQL
+int sqlite3ExecuteCompiledSql(Parse *pParse, const char *zSql, char **pzErrMsg);
+#endif
+
 /*
 ** Run the parser on the given SQL string.  The parser structure is
 ** passed in.  An SQLITE_ status code is returned.  If an error occurs
@@ -414,6 +418,9 @@ int sqlite3RunParser(Parse *pParse, const char *zSql, char **pzErrMsg){
   assert( pParse->azVar==0 );
   enableLookaside = db->lookaside.bEnabled;
   if( db->lookaside.pStart ) db->lookaside.bEnabled = 1;
+#ifdef ENABLE_COMPILED_SQL
+  if( sqlite3ExecuteCompiledSql(pParse, zSql, pzErrMsg)==0 ){
+#endif
   while( !db->mallocFailed && zSql[i]!=0 ){
     assert( i>=0 );
     pParse->sLastToken.z = &zSql[i];
@@ -461,6 +468,9 @@ abort_parse:
     }
     sqlite3Parser(pEngine, 0, pParse->sLastToken, pParse);
   }
+#ifdef ENABLE_COMPILED_SQL
+  }
+#endif
 #ifdef YYTRACKMAXSTACKDEPTH
   sqlite3StatusSet(SQLITE_STATUS_PARSER_STACK,
       sqlite3ParserStackPeak(pEngine)
