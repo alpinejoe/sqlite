@@ -3467,10 +3467,12 @@ PRIVATE void translate_code(struct lemon *lemp, struct rule *rp){
   } /* End loop */
 
 #define NEW_LINE_INDETATION "\n        "
+  append_str("\n#ifdef RUNNING_SQL_COMPILER\n",0,0,0);
   if( lhsused ){
     /*You can have only one LHS alias for a given rule */
-    append_str(NEW_LINE_INDETATION "yygotominor.id = ++var_id;"
-      NEW_LINE_INDETATION "printf(\"\\nYYMINORTYPE v%i; {\", var_id);",0,0,0);
+    append_str(NEW_LINE_INDETATION "yygotominor.id = ++yypParser->yyminorused;"
+      NEW_LINE_INDETATION "printf(\"\\n    YYMINORTYPE v%i; "
+      "{\", yypParser->yyminorused);",0,0,0);
   }
   append_str(NEW_LINE_INDETATION "printf(\"%s\",\"",0,0,0);
   for(cp=(char *)rp->code; *cp; cp++){
@@ -3480,7 +3482,8 @@ PRIVATE void translate_code(struct lemon *lemp, struct rule *rp){
       saved = *xp;
       *xp = 0;
       if( rp->lhsalias && strcmp(cp,rp->lhsalias)==0 ){
-        append_str("\");" NEW_LINE_INDETATION "printf(\"v%i.yy%d\",var_id);"
+        append_str("\");" NEW_LINE_INDETATION "printf(\"v%i.yy%d\","
+          "yypParser->yyminorused);"
           NEW_LINE_INDETATION "printf(\"%s\",\"",0,rp->lhs->dtnum,0);
         cp = xp;
         lhsused = 1;
@@ -3490,7 +3493,8 @@ PRIVATE void translate_code(struct lemon *lemp, struct rule *rp){
             if( cp!=rp->code && cp[-1]=='@' ){
               /* If the argument is of the form @X then substituted
               ** the token number of X, not the value of X */
-              append_str("\");" NEW_LINE_INDETATION "printf(\"%i\",yymsp[%d].major);"
+              append_str(
+                "\");" NEW_LINE_INDETATION "printf(\"%i\",yymsp[%d].major);"
                 NEW_LINE_INDETATION "printf(\"%s\",\"",-1,i-rp->nrhs+1,0);
             }else{
               struct symbol *sp = rp->rhs[i];
@@ -3500,7 +3504,8 @@ PRIVATE void translate_code(struct lemon *lemp, struct rule *rp){
               }else{
                 dtnum = sp->dtnum;
               }
-              append_str("\");" NEW_LINE_INDETATION "printf(\"v%i.yy%d\",yymsp[%d].minor.id);"
+              append_str("\");" NEW_LINE_INDETATION
+                "printf(\"v%i.yy%d\",yymsp[%d].minor.id);"
                 NEW_LINE_INDETATION "printf(\"%s\",\"",0,dtnum,i-rp->nrhs+1);
             }
             cp = xp;
@@ -3513,7 +3518,8 @@ PRIVATE void translate_code(struct lemon *lemp, struct rule *rp){
     }
     switch(*cp) {
       case '"': append_str("\\\"",0,0,0); break;
-      case '\n': append_str("\\n",0,0,0); break;
+      case '\n': append_str("\\n    ",0,0,0); break; /* Padding for improved
+                                                     ** readability */
       case '\\': append_str("\\\\",0,0,0); break;
       default: append_str(cp,1,0,0);
     }
@@ -3524,6 +3530,7 @@ PRIVATE void translate_code(struct lemon *lemp, struct rule *rp){
   else {
     append_str("\");\n",0,0,0);
   }
+  append_str("#endif /* RUNNING_SQL_COMPILER */\n",0,0,0);
 
   /* Check to make sure the LHS has been used */
   if( rp->lhsalias && !lhsused ){
@@ -3688,20 +3695,25 @@ void print_stack_union(
   fprintf(out,"#define %sTOKENTYPE %s\n",name,
     lemp->tokentype?lemp->tokentype:"void*");  lineno++;
   if( mhflag ){ fprintf(out,"#endif\n"); lineno++; }
-  fprintf(out,"typedef struct { union {\n"); lineno++;
-  fprintf(out,"  int yyinit;\n"); lineno++;
-  fprintf(out,"  %sTOKENTYPE yy0;\n",name); lineno++;
+  fprintf(out,"typedef struct {\n"); lineno++;
+  fprintf(out,"  union {\n"); lineno++;
+  fprintf(out,"    int yyinit;\n"); lineno++;
+  fprintf(out,"    %sTOKENTYPE yy0;\n",name); lineno++;
   for(i=0; i<arraysize; i++){
     if( types[i]==0 ) continue;
-    fprintf(out,"  %s yy%d;\n",types[i],i+1); lineno++;
+    fprintf(out,"    %s yy%d;\n",types[i],i+1); lineno++;
     free(types[i]);
   }
   if( lemp->errsym->useCnt ){
-    fprintf(out,"  int yy%d;\n",lemp->errsym->dtnum); lineno++;
+    fprintf(out,"    int yy%d;\n",lemp->errsym->dtnum); lineno++;
   }
   free(stddt);
   free(types);
-  fprintf(out,"}; int id;} YYMINORTYPE;\n"); lineno++;
+  fprintf(out,"  };\n"); lineno++;
+  fprintf(out,"#ifdef RUNNING_SQL_COMPILER\n"); lineno++;
+  fprintf(out,"  int id;\n"); lineno++;
+  fprintf(out,"#endif /* RUNNING_SQL_COMPILER */\n"); lineno++;
+  fprintf(out,"} YYMINORTYPE;\n"); lineno++;
   *plineno = lineno;
 }
 

@@ -184,6 +184,10 @@ struct yyParser {
 #else
   yyStackEntry yystack[YYSTACKDEPTH];  /* The parser's stack */
 #endif
+#ifdef RUNNING_SQL_COMPILER
+  int yyminorused;              /* Counter to generate new variable names when
+                                ** compiling SQL */
+#endif /* RUNNING_SQL_COMPILER */
 };
 typedef struct yyParser yyParser;
 
@@ -557,8 +561,6 @@ static const struct {
 static void yy_accept(yyParser*);  /* Forward Declaration */
 
 
-static int var_id;              /* Amount to pop the stack */
-
 /*
 ** Perform a reduce action and the shift that must immediately
 ** follow the reduce.
@@ -759,10 +761,13 @@ void Parse(
   do{
     yyact = yy_find_shift_action(yypParser,(YYCODETYPE)yymajor);
     if( yyact<YYNSTATE ){
-      yyminorunion.id = ++var_id;
-      printf("\nYYMINORTYPE v%i; ", var_id);
-      printf("v%i.yy0.z = \"%.*s\"; v%i.yy0.n = %d;", var_id, yyminorunion.yy0.n,
-        yyminorunion.yy0.z, var_id, yyminorunion.yy0.n);
+#ifdef RUNNING_SQL_COMPILER
+      yyminorunion.id = ++yypParser->yyminorused;
+      printf("\n    YYMINORTYPE v%i; ", yypParser->yyminorused);
+      printf("v%i.yy0.z = \"%.*s\"; v%i.yy0.n = %d;", yypParser->yyminorused,
+        yyminorunion.yy0.n, yyminorunion.yy0.z, yypParser->yyminorused,
+        yyminorunion.yy0.n);
+#endif /* RUNNING_SQL_COMPILER */
       yy_shift(yypParser,yyact,yymajor,&yyminorunion);
       yypParser->yyerrcnt--;
       yymajor = YYNOCODE;
