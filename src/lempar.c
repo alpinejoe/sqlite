@@ -288,6 +288,9 @@ void *ParseAlloc(void *(*mallocProc)(u64)){
     pParser->yystksz = 0;
     yyGrowStack(pParser);
 #endif
+#ifdef RUNNING_SQL_COMPILER
+    pParser->yyminorused = 0;
+#endif /* RUNNING_SQL_COMPILER */
   }
   return pParser;
 }
