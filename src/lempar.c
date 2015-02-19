@@ -767,9 +767,9 @@ void Parse(
 #ifdef RUNNING_SQL_COMPILER
       yyminorunion.id = ++yypParser->yyminorused;
       printf("\n    YYMINORTYPE v%i; ", yypParser->yyminorused);
-      printf("v%i.yy0.z = \"%.*s\"; v%i.yy0.n = %d;", yypParser->yyminorused,
-        yyminorunion.yy0.n, yyminorunion.yy0.z, yypParser->yyminorused,
-        yyminorunion.yy0.n);
+      printf("v%i.yy0.z = zSql+%d; v%i.yy0.n = %d;",
+        yypParser->yyminorused, yyminorunion.yy0.z-pParse->zTail,
+        yypParser->yyminorused, yyminorunion.yy0.n);
 #endif /* RUNNING_SQL_COMPILER */
       yy_shift(yypParser,yyact,yymajor,&yyminorunion);
       yypParser->yyerrcnt--;

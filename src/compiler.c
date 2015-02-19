@@ -47,7 +47,7 @@ void compile_sql(sqlite3 *db,char *zSql){
   char *sqlescaped=malloc( sqllen*2 );
   escape_sql( zSql,sqllen,sqlescaped );
 
-  printf( "    case %d: ",hash );
+  printf( "    case %u: ",hash );
   printf( "if( strcmp( zSql,\"%s\" )==0 ){\n",sqlescaped );
   sqlite3_prepare_v2(db,zSql,sqllen,&pStmt,NULL);
   if( SQLITE_OK!=sqlite3_errcode(db) ){
