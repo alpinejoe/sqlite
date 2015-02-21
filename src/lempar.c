@@ -184,10 +184,6 @@ struct yyParser {
 #else
   yyStackEntry yystack[YYSTACKDEPTH];  /* The parser's stack */
 #endif
-#ifdef RUNNING_SQL_COMPILER
-  int yyminorused;              /* Counter to generate new variable names when
-                                ** compiling SQL */
-#endif /* RUNNING_SQL_COMPILER */
 };
 typedef struct yyParser yyParser;
 
@@ -288,9 +284,6 @@ void *ParseAlloc(void *(*mallocProc)(u64)){
     pParser->yystksz = 0;
     yyGrowStack(pParser);
 #endif
-#ifdef RUNNING_SQL_COMPILER
-    pParser->yyminorused = 0;
-#endif /* RUNNING_SQL_COMPILER */
   }
   return pParser;
 }
@@ -765,11 +758,12 @@ void Parse(
     yyact = yy_find_shift_action(yypParser,(YYCODETYPE)yymajor);
     if( yyact<YYNSTATE ){
 #ifdef RUNNING_SQL_COMPILER
-      yyminorunion.id = ++yypParser->yyminorused;
-      printf("\n    YYMINORTYPE v%i; ", yypParser->yyminorused);
-      printf("v%i.yy0.z = zSql+%d; v%i.yy0.n = %d;",
-        yypParser->yyminorused, yyminorunion.yy0.z-pParse->zTail,
-        yypParser->yyminorused, yyminorunion.yy0.n);
+      yyminorunion.id = ++pParse->nParseStep;
+      pParse->zCSql = sqlite3_mprintf("%z\n    YYMINORTYPE v%i; ",
+        pParse->zCSql, pParse->nParseStep);
+      pParse->zCSql = sqlite3_mprintf("%zv%i.yy0.z = zSql+%d; v%i.yy0.n = %d;",
+        pParse->zCSql, pParse->nParseStep, yyminorunion.yy0.z-pParse->zTail,
+        pParse->nParseStep, yyminorunion.yy0.n);
 #endif /* RUNNING_SQL_COMPILER */
       yy_shift(yypParser,yyact,yymajor,&yyminorunion);
       yypParser->yyerrcnt--;

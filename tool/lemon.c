@@ -3470,11 +3470,12 @@ PRIVATE void translate_code(struct lemon *lemp, struct rule *rp){
   append_str("\n#ifdef RUNNING_SQL_COMPILER\n",0,0,0);
   if( lhsused ){
     /*You can have only one LHS alias for a given rule */
-    append_str(NEW_LINE_INDETATION "yygotominor.id = ++yypParser->yyminorused;"
-      NEW_LINE_INDETATION "printf(\"\\n    YYMINORTYPE v%i; "
-      "{\", yypParser->yyminorused);",0,0,0);
+    append_str(NEW_LINE_INDETATION "yygotominor.id = ++pParse->nParseStep;"
+      NEW_LINE_INDETATION "pParse->zCSql = sqlite3_mprintf(\"%z"
+      "\\n    YYMINORTYPE v%i; {\", pParse->zCSql, pParse->nParseStep);",0,0,0);
   }
-  append_str(NEW_LINE_INDETATION "printf(\"%s\",\"",0,0,0);
+  append_str(NEW_LINE_INDETATION "pParse->zCSql = sqlite3_mprintf("
+    "\"%z%s\",pParse->zCSql,\"",0,0,0);
   for(cp=(char *)rp->code; *cp; cp++){
     if( isalpha(*cp) && (cp==rp->code || (!isalnum(cp[-1]) && cp[-1]!='_')) ){
       char saved;
@@ -3482,9 +3483,11 @@ PRIVATE void translate_code(struct lemon *lemp, struct rule *rp){
       saved = *xp;
       *xp = 0;
       if( rp->lhsalias && strcmp(cp,rp->lhsalias)==0 ){
-        append_str("\");" NEW_LINE_INDETATION "printf(\"v%i.yy%d\","
-          "yypParser->yyminorused);"
-          NEW_LINE_INDETATION "printf(\"%s\",\"",0,rp->lhs->dtnum,0);
+        append_str("\");"
+          NEW_LINE_INDETATION "pParse->zCSql = sqlite3_mprintf("
+          "\"%zv%i.yy%d\",pParse->zCSql, pParse->nParseStep);"
+          NEW_LINE_INDETATION "pParse->zCSql = sqlite3_mprintf("
+          "\"%z%s\",pParse->zCSql,\"",0,rp->lhs->dtnum,0);
         cp = xp;
         lhsused = 1;
       }else{
@@ -3493,9 +3496,11 @@ PRIVATE void translate_code(struct lemon *lemp, struct rule *rp){
             if( cp!=rp->code && cp[-1]=='@' ){
               /* If the argument is of the form @X then substituted
               ** the token number of X, not the value of X */
-              append_str(
-                "\");" NEW_LINE_INDETATION "printf(\"%i\",yymsp[%d].major);"
-                NEW_LINE_INDETATION "printf(\"%s\",\"",-1,i-rp->nrhs+1,0);
+              append_str("\");"
+                NEW_LINE_INDETATION "pParse->zCSql = sqlite3_mprintf("
+                "\"%z%i\",pParse->zCSql,yymsp[%d].major);"
+                NEW_LINE_INDETATION "pParse->zCSql = sqlite3_mprintf("
+                "\"%z%s\",pParse->zCSql,\"",-1,i-rp->nrhs+1,0);
             }else{
               struct symbol *sp = rp->rhs[i];
               int dtnum;
@@ -3504,9 +3509,11 @@ PRIVATE void translate_code(struct lemon *lemp, struct rule *rp){
               }else{
                 dtnum = sp->dtnum;
               }
-              append_str("\");" NEW_LINE_INDETATION
-                "printf(\"v%i.yy%d\",yymsp[%d].minor.id);"
-                NEW_LINE_INDETATION "printf(\"%s\",\"",0,dtnum,i-rp->nrhs+1);
+              append_str("\");"
+                NEW_LINE_INDETATION "pParse->zCSql = sqlite3_mprintf("
+                "\"%zv%i.yy%d\",pParse->zCSql,yymsp[%d].minor.id);"
+                NEW_LINE_INDETATION "pParse->zCSql = sqlite3_mprintf("
+                "\"%z%s\",pParse->zCSql,\"",0,dtnum,i-rp->nrhs+1);
             }
             cp = xp;
             used[i] = 1;

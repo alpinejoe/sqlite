@@ -376,6 +376,9 @@ int sqlite3GetToken(const unsigned char *z, int *tokenType){
 #ifdef ENABLE_COMPILED_SQL
 int sqlite3ExecuteCompiledSql(Parse *pParse, const char *zSql, char **pzErrMsg);
 #endif
+#ifdef RUNNING_SQL_COMPILER
+void (*sqlite3CompiledSql)(const char *zSql, int nSql, const char *zCSql) = 0;
+#endif
 
 /*
 ** Run the parser on the given SQL string.  The parser structure is
@@ -418,6 +421,10 @@ int sqlite3RunParser(Parse *pParse, const char *zSql, char **pzErrMsg){
   assert( pParse->azVar==0 );
   enableLookaside = db->lookaside.bEnabled;
   if( db->lookaside.pStart ) db->lookaside.bEnabled = 1;
+#ifdef RUNNING_SQL_COMPILER
+  pParse->nParseStep = 0;
+  pParse->zCSql = sqlite3_mprintf("");
+#endif /* RUNNING_SQL_COMPILER */
 #ifdef ENABLE_COMPILED_SQL
   if( sqlite3ExecuteCompiledSql(pParse, zSql, pzErrMsg)==0 ){
 #endif
@@ -471,6 +478,13 @@ abort_parse:
 #ifdef ENABLE_COMPILED_SQL
   }
 #endif
+#ifdef RUNNING_SQL_COMPILER
+  if( sqlite3CompiledSql ){
+    sqlite3CompiledSql(zSql, i, pParse->zCSql);
+  }
+  free(pParse->zCSql);
+  pParse->zCSql = NULL;
+#endif /* RUNNING_SQL_COMPILER */
 #ifdef YYTRACKMAXSTACKDEPTH
   sqlite3StatusSet(SQLITE_STATUS_PARSER_STACK,
       sqlite3ParserStackPeak(pEngine)
