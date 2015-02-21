@@ -9,7 +9,7 @@
 
 #define SQL_FUNCTION_START "\n" \
   "SQLITE_PRIVATE int sqlite3ExecuteCompiledSql%u(Parse *pParse, const char *zSql, char **pzErrMsg){\n"
-#define SQL_FUNCTION_END "  return 1;\n  }\n"
+#define SQL_FUNCTION_END "  return 0;\n}\n"
 #define SQL_FUNCTION_CALL "sqlite3ExecuteCompiledSql%u(pParse,zSql,pzErrMsg)"
 
 #define DUMMY_SQL "SELECT * FROM sqlite_master"
@@ -122,7 +122,7 @@ void save_code(sqlite3 *db){
     }
     printf( "if( strcmp( zSql,\"%s\" )==0 ){\n",sqlescaped );
     printf( "%s",zCSql );
-    printf( "\n    return 0;\n" );
+    printf( "\n    return 1;\n" );
     printf( "  }\n" );
 
     previous_hash=hash;
@@ -137,9 +137,9 @@ void save_code(sqlite3 *db){
   sqlite3_prepare_v2( db,READ_UNIQUE_HASH,sizeof(READ_UNIQUE_HASH)+1,&pStmt,NULL );
   printf( FUNCTION_START );
   printf( "  unsigned hash=0;\n" );
-  printf( "  size_t sqllen=strlen( zSql );\n" );
-  printf( "  for( size_t i=0;i<sqllen;++i ){\n" );
-  printf( "    hash^=zSql[i];\n" );
+  printf( "  const char *zTail=zSql;\n" );
+  printf( "  while( *zTail ){\n" );
+  printf( "    hash^=*(zTail++);\n" );
   printf( "    hash+=(hash<<1)+(hash<<4)+(hash<<7)+(hash<<8)+(hash<<24);\n" );
   printf( "  }\n" );
   printf( "  switch( hash ){\n" );
@@ -151,7 +151,7 @@ void save_code(sqlite3 *db){
   }
   printf( "    default: return 0; /* SQL is not compiled */\n"
           "  }\n"
-          "  pParse->zTail=zSql+strlen( zSql );\n"
+          "  pParse->zTail=zTail;\n"
           "  return 1;\n"
           FUNCTION_END
   );
