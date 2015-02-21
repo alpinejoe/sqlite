@@ -3,10 +3,38 @@
 #include <string.h>
 #include <sqlite3.h>
 
-#define FUNCTION_PROTOTYPE "SQLITE_PRIVATE int sqlite3ExecuteCompiledSql(Parse *pParse, const char *zSql, char **pzErrMsg)"
+#define FUNCTION_START "\n" \
+  "SQLITE_PRIVATE int sqlite3ExecuteCompiledSql(Parse *pParse, const char *zSql, char **pzErrMsg){\n"
+#define FUNCTION_END "}\n"
+
+#define SQL_FUNCTION_START "\n" \
+  "SQLITE_PRIVATE int sqlite3ExecuteCompiledSql%u(Parse *pParse, const char *zSql, char **pzErrMsg){\n"
+#define SQL_FUNCTION_END "  return 1;\n  }\n"
+#define SQL_FUNCTION_CALL "sqlite3ExecuteCompiledSql%u(pParse,zSql,pzErrMsg)"
+
 #define DUMMY_SQL "SELECT * FROM sqlite_master"
 
-unsigned get_hash(char *zSql, size_t nChar){
+#define CREATE_TBL_COMPILED_SQL "\
+CREATE TEMPORARY TABLE IF NOT EXISTS [compiled_sql] (\
+[hash] INTEGER, \
+[sql] TEXT, \
+[csql] TEXT, \
+UNIQUE([sql]))"
+#define INSERT_COMPILED_SQL "\
+INSERT OR IGNORE INTO [temp].[compiled_sql] \
+([hash], [sql], [csql]) \
+VALUES (?,?,?)"
+#define READ_COMPILED_SQL "\
+SELECT [hash],[sql],[csql] \
+FROM [temp].[compiled_sql] \
+ORDER BY [hash]"
+#define READ_UNIQUE_HASH "\
+SELECT DISTINCT([hash]) \
+FROM [temp].[compiled_sql]"
+
+extern void (*sqlite3CompiledSql)(const char *zSql, int nSql, const char *zCSql);
+
+unsigned get_hash(const char *zSql, size_t nChar){
   unsigned hash=0;
   for( size_t i=0;i<nChar;++i ){
     hash^=zSql[i];
@@ -15,7 +43,7 @@ unsigned get_hash(char *zSql, size_t nChar){
   return hash;
 }
 
-void escape_sql(char *zSql, size_t nChar, char *zEscaped){
+void escape_sql(const unsigned char *zSql, size_t nChar, char *zEscaped){
   size_t j=0;
   for( size_t i=0;i<nChar;++i ){
     switch( zSql[i] ){
@@ -39,16 +67,10 @@ void escape_sql(char *zSql, size_t nChar, char *zEscaped){
   zEscaped[j]='\0';
 }
 
-void compile_sql(sqlite3 *db,char *zSql){
+void prepare_sql(sqlite3 *db, char *zSql){
   sqlite3_stmt *pStmt=NULL;
   size_t sqllen=strlen( zSql );
-  unsigned hash=get_hash( zSql,sqllen );
 
-  char *sqlescaped=malloc( sqllen*2 );
-  escape_sql( zSql,sqllen,sqlescaped );
-
-  printf( "    case %u: ",hash );
-  printf( "if( strcmp( zSql,\"%s\" )==0 ){\n",sqlescaped );
   sqlite3_prepare_v2(db,zSql,sqllen,&pStmt,NULL);
   if( SQLITE_OK!=sqlite3_errcode(db) ){
     fprintf(stderr,"Error: unable to prepare SQL \"%s\": %s\n",
@@ -58,9 +80,83 @@ void compile_sql(sqlite3 *db,char *zSql){
     sqlite3_step( pStmt );
   }
   sqlite3_finalize( pStmt );
-  free( sqlescaped );
-  printf( "\n    }\n" );
-  printf( "    break;\n" );
+}
+
+sqlite3_stmt *gInsertStmt;
+void compile_sql(const char *zSql, int nSql, const char *zCSql){
+  unsigned hash=get_hash( zSql,nSql );
+  sqlite3_bind_int64( gInsertStmt,1,hash );
+  sqlite3_bind_text( gInsertStmt,2,zSql,nSql,SQLITE_STATIC );
+  sqlite3_bind_text( gInsertStmt,3,zCSql,strlen( zCSql ),SQLITE_STATIC );
+  sqlite3_step( gInsertStmt );
+  sqlite3_reset( gInsertStmt );
+}
+
+void save_code(sqlite3 *db){
+  sqlite3_stmt *pStmt=NULL;
+
+  printf( "\n#ifdef ENABLE_COMPILED_SQL\n" );
+
+  /* Each SQL hash gets saved as a function.
+   * This prevents stack overflow when compiling a lot of SQL. */
+  sqlite3_prepare_v2( db,READ_COMPILED_SQL,sizeof(READ_COMPILED_SQL)+1,&pStmt,NULL );
+  sqlite3_int64 previous_hash = -1;
+  while( sqlite3_step(pStmt)==SQLITE_ROW ){
+    sqlite3_int64 hash=sqlite3_column_int64( pStmt,0 );
+    const unsigned char *zSql = sqlite3_column_text( pStmt,1 );
+    int nSql = sqlite3_column_bytes( pStmt,1 );
+    const unsigned char *zCSql = sqlite3_column_text( pStmt,2 );
+
+    char *sqlescaped=malloc( nSql*2 );
+    escape_sql( zSql,nSql,sqlescaped );
+
+    if( hash==previous_hash ){
+      printf( "  else " );
+    }
+    else{
+      if( previous_hash!=-1 ){
+        printf( SQL_FUNCTION_END );
+      }
+      printf( SQL_FUNCTION_START,(unsigned)hash );
+      printf( "  " );
+    }
+    printf( "if( strcmp( zSql,\"%s\" )==0 ){\n",sqlescaped );
+    printf( "%s",zCSql );
+    printf( "\n    return 0;\n" );
+    printf( "  }\n" );
+
+    previous_hash=hash;
+    free( sqlescaped );
+  }
+  if( previous_hash!=-1 ){
+    printf( SQL_FUNCTION_END );
+  }
+  sqlite3_finalize( pStmt );
+
+  /* Print the main function. */
+  sqlite3_prepare_v2( db,READ_UNIQUE_HASH,sizeof(READ_UNIQUE_HASH)+1,&pStmt,NULL );
+  printf( FUNCTION_START );
+  printf( "  unsigned hash=0;\n" );
+  printf( "  size_t sqllen=strlen( zSql );\n" );
+  printf( "  for( size_t i=0;i<sqllen;++i ){\n" );
+  printf( "    hash^=zSql[i];\n" );
+  printf( "    hash+=(hash<<1)+(hash<<4)+(hash<<7)+(hash<<8)+(hash<<24);\n" );
+  printf( "  }\n" );
+  printf( "  switch( hash ){\n" );
+  while( sqlite3_step(pStmt)==SQLITE_ROW ){
+    unsigned hash = (unsigned)sqlite3_column_int64( pStmt,0 );
+    printf( "    case %u:\n",hash );
+    printf( "      if( " SQL_FUNCTION_CALL "==0 ) return 0;\n",hash );
+    printf( "      break;\n" );
+  }
+  printf( "    default: return 0; /* SQL is not compiled */\n"
+          "  }\n"
+          "  pParse->zTail=zSql+strlen( zSql );\n"
+          "  return 1;\n"
+          FUNCTION_END
+  );
+
+  printf( "#endif /* ENABLE_COMPILED_SQL */\n" );
 }
 
 /* Usage: compiler db sql ...*/
@@ -72,9 +168,9 @@ int main( int argc,char **argv ){
       fprintf(stderr, "Unable to open sqlite3.c\n");
       exit(1);
     }
-    printf( FUNCTION_PROTOTYPE " {\n"
+    printf( FUNCTION_START
             "  return 0;\n"
-            "}\n"
+            FUNCTION_END
     );
   }
   else{
@@ -87,10 +183,11 @@ int main( int argc,char **argv ){
       exit(1);
     }
 
+#ifdef DISABLE_INTIALISATION
     /* Dummy SQL to force SQLite initialisation */
-    freopen("NUL","w",stdout); /* ignore if failed */
-    sqlite3_prepare_v2(db,DUMMY_SQL,strlen( DUMMY_SQL ),&pStmt,NULL);
+    sqlite3_prepare_v2( db,DUMMY_SQL,strlen( DUMMY_SQL ),&pStmt,NULL );
     sqlite3_finalize( pStmt );
+#endif /* DISABLE_INTIALISATION */
 
     FILE *sqlite_source = freopen("sqlite3.c","a",stdout);
     if( sqlite_source==NULL ){
@@ -98,14 +195,11 @@ int main( int argc,char **argv ){
       exit(1);
     }
 
-    printf( FUNCTION_PROTOTYPE " {\n" );
-    printf( "  unsigned hash=0;\n" );
-    printf( "  size_t sqllen=strlen( zSql );\n" );
-    printf( "  for( size_t i=0; i<sqllen; ++i ){\n" );
-    printf( "    hash^=zSql[i];\n" );
-    printf( "    hash+=(hash<<1)+(hash<<4)+(hash<<7)+(hash<<8)+(hash<<24);\n" );
-    printf( "  }\n" );
-    printf( "  switch( hash ){\n" );
+    prepare_sql( db,CREATE_TBL_COMPILED_SQL );
+    sqlite3_prepare_v2( db,INSERT_COMPILED_SQL,
+      sizeof( INSERT_COMPILED_SQL )+1,&gInsertStmt,NULL );
+
+    sqlite3CompiledSql = compile_sql;
     if( argc==2 ){
       /* Read SQL from stdin. Queries are separated by an empty line. */
       char buffer[1024];
@@ -116,7 +210,7 @@ int main( int argc,char **argv ){
         read=strlen( buffer );
         if( read==1 && total>0 ){
           sql[total-1]='\0'; /* replace last '\n' */
-          compile_sql( db,sql );
+          prepare_sql( db,sql );
           total=0;
         }
         else{
@@ -129,15 +223,14 @@ int main( int argc,char **argv ){
     }
     else{
       for( int i=2; i<argc; ++i ){
-        compile_sql( db,argv[i] );
+        prepare_sql( db,argv[i] );
       }
     }
-    printf( "    default: return 0; /* SQL is not compiled */\n"
-            "  }\n"
-            "  pParse->zTail=zSql+strlen( zSql );\n"
-            "  return 1;\n"
-            "}\n"
-    );
+    sqlite3CompiledSql = NULL;
+
+    sqlite3_finalize( gInsertStmt );
+
+    save_code( db );
     sqlite3_close( db );
   }
 }
