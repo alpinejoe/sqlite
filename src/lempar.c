@@ -759,11 +759,12 @@ void Parse(
     if( yyact<YYNSTATE ){
 #ifdef RUNNING_SQL_COMPILER
       yyminorunion.id = ++pParse->nParseStep;
-      pParse->zCSql = sqlite3_mprintf("%z\n    YYMINORTYPE v%i; ",
-        pParse->zCSql, pParse->nParseStep);
-      pParse->zCSql = sqlite3_mprintf("%zv%i.yy0.z = zSql+%d; v%i.yy0.n = %d;",
-        pParse->zCSql, pParse->nParseStep, yyminorunion.yy0.z-pParse->zTail,
-        pParse->nParseStep, yyminorunion.yy0.n);
+      pParse->zCSql = sqlite3_mprintf("%z\n    YYMINORTYPE v%i; "
+        "pParse->sLastToken.z = zSql+%d; pParse->sLastToken.n = %d; "
+        "v%i.yy0 = pParse->sLastToken;",
+        pParse->zCSql, pParse->nParseStep,
+        yyminorunion.yy0.z-pParse->zTail, yyminorunion.yy0.n,
+        pParse->nParseStep);
 #endif /* RUNNING_SQL_COMPILER */
       yy_shift(yypParser,yyact,yymajor,&yyminorunion);
       yypParser->yyerrcnt--;
