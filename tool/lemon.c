@@ -3306,6 +3306,7 @@ void emit_destructor_code(
   int *lineno
 ){
  char *cp = 0;
+ char *cp2 = 0;
 
  if( sp->type==TERMINAL ){
    cp = lemp->tokendest;
@@ -3322,6 +3323,7 @@ void emit_destructor_code(
  }else{
    assert( 0 );  /* Cannot happen */
  }
+ cp2 = cp;
  for(; *cp; cp++){
    if( *cp=='$' && cp[1]=='$' ){
      fprintf(out,"(yypminor->yy%d)",sp->dtnum);
@@ -3332,6 +3334,27 @@ void emit_destructor_code(
    fputc(*cp,out);
  }
  fprintf(out,"\n"); (*lineno)++;
+
+ fprintf(out,"#ifdef RUNNING_SQL_COMPILER\n"); (*lineno)++;
+ fprintf(out,"pParse->zCSql = sqlite3_mprintf(\"%%z");
+ cp = cp2;
+ for(; *cp; cp++){
+   if( *cp=='$' && cp[1]=='$' ){
+     fprintf(out,"(v%%i.yy%d)",sp->dtnum);
+     cp++;
+     continue;
+   }
+   if( *cp=='\n' ){
+     (*lineno)++;
+     fprintf(out,"\\n");
+   }
+   else{
+     fputc(*cp,out);
+   }
+ }
+ fprintf(out,"\", pParse->zCSql, yypminor->id);\n"); (*lineno)++;
+ fprintf(out,"#endif /* RUNNING_SQL_COMPILER */\n"); (*lineno)++;
+
  if (!lemp->nolinenosflag) { 
    (*lineno)++; tplt_linedir(out,*lineno,lemp->outname); 
  }
