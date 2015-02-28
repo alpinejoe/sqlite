@@ -3508,9 +3508,8 @@ PRIVATE void translate_code(struct lemon *lemp, struct rule *rp){
       if( rp->lhsalias && strcmp(cp,rp->lhsalias)==0 ){
         append_str("\");"
           NEW_LINE_INDETATION "pParse->zCSql = sqlite3_mprintf("
-          "\"%zv%i.yy%d\",pParse->zCSql, pParse->nParseStep);"
-          NEW_LINE_INDETATION "pParse->zCSql = sqlite3_mprintf("
-          "\"%z%s\",pParse->zCSql,\"",0,rp->lhs->dtnum,0);
+          "\"%zv%i.yy%d%s\", pParse->zCSql, pParse->nParseStep, \"",
+          0,rp->lhs->dtnum,0);
         cp = xp;
         lhsused = 1;
       }else{
@@ -3521,9 +3520,8 @@ PRIVATE void translate_code(struct lemon *lemp, struct rule *rp){
               ** the token number of X, not the value of X */
               append_str("\");"
                 NEW_LINE_INDETATION "pParse->zCSql = sqlite3_mprintf("
-                "\"%z%i\",pParse->zCSql,yymsp[%d].major);"
-                NEW_LINE_INDETATION "pParse->zCSql = sqlite3_mprintf("
-                "\"%z%s\",pParse->zCSql,\"",-1,i-rp->nrhs+1,0);
+                "\"%z%i%s\", pParse->zCSql, yymsp[%d].major, \"",
+                -1,i-rp->nrhs+1,0);
             }else{
               struct symbol *sp = rp->rhs[i];
               int dtnum;
@@ -3534,9 +3532,8 @@ PRIVATE void translate_code(struct lemon *lemp, struct rule *rp){
               }
               append_str("\");"
                 NEW_LINE_INDETATION "pParse->zCSql = sqlite3_mprintf("
-                "\"%zv%i.yy%d\",pParse->zCSql,yymsp[%d].minor.id);"
-                NEW_LINE_INDETATION "pParse->zCSql = sqlite3_mprintf("
-                "\"%z%s\",pParse->zCSql,\"",0,dtnum,i-rp->nrhs+1);
+                "\"%zv%i.yy%d%s\", pParse->zCSql, yymsp[%d].minor.id, \"",
+                0,dtnum,i-rp->nrhs+1);
             }
             cp = xp;
             used[i] = 1;
