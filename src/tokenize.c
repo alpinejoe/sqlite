@@ -453,10 +453,6 @@ int sqlite3RunParser(Parse *pParse, const char *zSql, char **pzErrMsg){
         nErr++;
         goto abort_parse;
       }
-      case TK_SEMI: {
-        pParse->zTail = &zSql[i];
-        /* Fall thru into the default case */
-      }
       default: {
         sqlite3Parser(pEngine, tokenType, pParse->sLastToken, pParse);
         lastTokenParsed = tokenType;
@@ -468,7 +464,9 @@ int sqlite3RunParser(Parse *pParse, const char *zSql, char **pzErrMsg){
     }
   }
 abort_parse:
-  if( zSql[i]==0 && nErr==0 && pParse->rc==SQLITE_OK ){
+  if( lastTokenParsed==TK_SEMI ){
+    pParse->zTail = &zSql[i];
+  }else if( zSql[i]==0 && nErr==0 && pParse->rc==SQLITE_OK ){
     if( lastTokenParsed!=TK_SEMI ){
       sqlite3Parser(pEngine, TK_SEMI, pParse->sLastToken, pParse);
       pParse->zTail = &zSql[i];
