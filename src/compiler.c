@@ -34,6 +34,9 @@ FROM [temp].[compiled_sql]"
 
 extern void (*sqlite3CompiledSql)(const char *zSql, int nSql, const char *zCSql);
 
+static sqlite3 *gCompiledSqlDb;
+static sqlite3_stmt *gInsertStmt;
+
 unsigned get_hash(const char *zSql, size_t nChar){
   unsigned hash=0;
   for( size_t i=0;i<nChar;++i ){
@@ -82,7 +85,6 @@ void prepare_sql(sqlite3 *db, char *zSql){
   sqlite3_finalize( pStmt );
 }
 
-sqlite3_stmt *gInsertStmt;
 void compile_sql(const char *zSql, int nSql, const char *zCSql){
   unsigned hash=get_hash( zSql,nSql );
   sqlite3_bind_int64( gInsertStmt,1,hash );
@@ -159,6 +161,32 @@ void save_code(sqlite3 *db){
   printf( "#endif /* ENABLE_COMPILED_SQL */\n" );
 }
 
+void emit_code(){
+  sqlite3_finalize( gInsertStmt );
+  sqlite3CompiledSql = NULL;
+
+  FILE *sqlite_source = freopen("sqlite3.c","a",stdout);
+  if( sqlite_source==NULL ) fprintf(stderr,"Unable to open sqlite3.c\n");
+  else save_code( gCompiledSqlDb );
+  sqlite3_close( gCompiledSqlDb );
+}
+
+void initialize_compiler(){
+  if( sqlite3_open(":memory:", &gCompiledSqlDb)!=SQLITE_OK ){
+    fprintf(stderr,"Error: unable to open in-memory database: %s\n",
+      sqlite3_errmsg( gCompiledSqlDb ));
+    exit(1);
+  }
+  prepare_sql( gCompiledSqlDb,CREATE_TBL_COMPILED_SQL );
+  sqlite3_prepare_v2( gCompiledSqlDb,INSERT_COMPILED_SQL,
+    sizeof( INSERT_COMPILED_SQL )+1,&gInsertStmt,NULL );
+
+  sqlite3CompiledSql = compile_sql;
+  if( atexit(emit_code)!=0 ){
+    fprintf( stderr,"Unable to register emit_code.\n" );
+  }
+}
+
 /* Usage: compiler db sql ...*/
 int main( int argc,char **argv ){
   if( argc < 2 ){
@@ -175,7 +203,6 @@ int main( int argc,char **argv ){
   }
   else{
     sqlite3 *db;
-    sqlite3_stmt *pStmt=NULL;
 
     if( sqlite3_open(argv[1], &db)!=SQLITE_OK ){
       fprintf(stderr,"Error: unable to open database \"%s\": %s\n",
@@ -184,22 +211,12 @@ int main( int argc,char **argv ){
     }
 
 #ifdef DISABLE_INTIALISATION
-    /* Dummy SQL to force SQLite initialisation */
-    sqlite3_prepare_v2( db,DUMMY_SQL,strlen( DUMMY_SQL ),&pStmt,NULL );
-    sqlite3_finalize( pStmt );
+    /* Dummy SQL to force initialisation of sqlite_master, schema, etc. */
+    prepare_sql( db,DUMMY_SQL );
 #endif /* DISABLE_INTIALISATION */
 
-    FILE *sqlite_source = freopen("sqlite3.c","a",stdout);
-    if( sqlite_source==NULL ){
-      fprintf(stderr,"Unable to open sqlite3.c\n");
-      exit(1);
-    }
+    initialize_compiler();
 
-    prepare_sql( db,CREATE_TBL_COMPILED_SQL );
-    sqlite3_prepare_v2( db,INSERT_COMPILED_SQL,
-      sizeof( INSERT_COMPILED_SQL )+1,&gInsertStmt,NULL );
-
-    sqlite3CompiledSql = compile_sql;
     if( argc==2 ){
       /* Read SQL from stdin. Queries are separated by an empty line. */
       char buffer[1024];
@@ -226,11 +243,7 @@ int main( int argc,char **argv ){
         prepare_sql( db,argv[i] );
       }
     }
-    sqlite3CompiledSql = NULL;
 
-    sqlite3_finalize( gInsertStmt );
-
-    save_code( db );
     sqlite3_close( db );
   }
 }
