@@ -1,3 +1,18 @@
+/*
+** 2015 March 6
+**
+** The author disclaims copyright to this source code.  In place of
+** a legal notice, here is a blessing:
+**
+**    May you do good and not evil.
+**    May you find forgiveness for yourself and forgive others.
+**    May you share freely, never taking more than you give.
+**
+*************************************************************************
+** This file contains C code that uses the SQL translator
+** to generate C functions for the given SQL.
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,6 +53,7 @@ static sqlite3 *gCompiledSqlDb;
 static sqlite3_stmt *gInsertStmt;
 
 unsigned get_hash(const char *zSql, size_t nChar){
+  /* FNV hash generator */
   unsigned hash=0;
   for( size_t i=0;i<nChar;++i ){
     hash^=zSql[i];
@@ -139,7 +155,8 @@ void save_code(sqlite3 *db){
   sqlite3_prepare_v2( db,READ_UNIQUE_HASH,sizeof(READ_UNIQUE_HASH)+1,&pStmt,NULL );
   printf( FUNCTION_START );
   printf( "  unsigned hash=0;\n" );
-  printf( "  const char *zTail=zSql;\n" );
+  printf( "  const char *zTail=zSql;\n\n" );
+  printf( "  /* FNV hash generator */\n" );
   printf( "  while( *zTail ){\n" );
   printf( "    hash^=*(zTail++);\n" );
   printf( "    hash+=(hash<<1)+(hash<<4)+(hash<<7)+(hash<<8)+(hash<<24);\n" );
@@ -187,7 +204,9 @@ void initialize_compiler(){
   }
 }
 
-/* Usage: compiler db sql ...*/
+/* Usage: compiler db sql ...
+ * or line separated SQL via stdin
+ */
 int main( int argc,char **argv ){
   if( argc < 2 ){
     fprintf(stderr, "Database path or SQL not provided. Appending empty function.\n");
