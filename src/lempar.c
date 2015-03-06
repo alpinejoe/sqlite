@@ -556,7 +556,6 @@ static const struct {
 
 static void yy_accept(yyParser*);  /* Forward Declaration */
 
-
 /*
 ** Perform a reduce action and the shift that must immediately
 ** follow the reduce.

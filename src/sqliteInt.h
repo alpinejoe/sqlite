@@ -2649,8 +2649,8 @@ struct Parse {
   TriggerPrg *pTriggerPrg;  /* Linked list of coded triggers */
   With *pWith;              /* Current WITH clause, or NULL */
 #ifdef RUNNING_SQL_TRANSLATOR
-  int nParseStep;           /* Generate new variable names when compiling SQL */
-  char *zCSql;              /* Compiled SQL in C */
+  int nParseStep;           /* Generate new variables when translating SQL */
+  char *zCSql;              /* Translated SQL in C */
 #endif /* RUNNING_SQL_TRANSLATOR */
 };
 

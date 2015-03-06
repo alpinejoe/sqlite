@@ -19,37 +19,37 @@
 #include <sqlite3.h>
 
 #define FUNCTION_START "\n" \
-  "SQLITE_PRIVATE int sqlite3ExecuteCompiledSql(Parse *pParse, const char *zSql, char **pzErrMsg){\n"
+  "SQLITE_PRIVATE int sqlite3ExecuteTranslatedSql(Parse *pParse, const char *zSql, char **pzErrMsg){\n"
 #define FUNCTION_END "}\n"
 
 #define SQL_FUNCTION_START "\n" \
-  "SQLITE_PRIVATE int sqlite3ExecuteCompiledSql%u(Parse *pParse, const char *zSql, char **pzErrMsg){\n"
+  "SQLITE_PRIVATE int sqlite3ExecuteTranslatedSql%u(Parse *pParse, const char *zSql, char **pzErrMsg){\n"
 #define SQL_FUNCTION_END "  return 0;\n}\n"
-#define SQL_FUNCTION_CALL "sqlite3ExecuteCompiledSql%u(pParse,zSql,pzErrMsg)"
+#define SQL_FUNCTION_CALL "sqlite3ExecuteTranslatedSql%u(pParse,zSql,pzErrMsg)"
 
 #define DUMMY_SQL "SELECT * FROM sqlite_master"
 
-#define CREATE_TBL_COMPILED_SQL "\
-CREATE TEMPORARY TABLE IF NOT EXISTS [compiled_sql] (\
+#define CREATE_TBL_TRANSLATED_SQL "\
+CREATE TEMPORARY TABLE IF NOT EXISTS [translated_sql] (\
 [hash] INTEGER, \
 [sql] TEXT, \
 [csql] TEXT, \
 UNIQUE([sql]))"
-#define INSERT_COMPILED_SQL "\
-INSERT OR IGNORE INTO [temp].[compiled_sql] \
+#define INSERT_TRANSLATED_SQL "\
+INSERT OR IGNORE INTO [temp].[translated_sql] \
 ([hash], [sql], [csql]) \
 VALUES (?,?,?)"
-#define READ_COMPILED_SQL "\
+#define READ_TRANSLATED_SQL "\
 SELECT [hash],[sql],[csql] \
-FROM [temp].[compiled_sql] \
+FROM [temp].[translated_sql] \
 ORDER BY [hash]"
 #define READ_UNIQUE_HASH "\
 SELECT DISTINCT([hash]) \
-FROM [temp].[compiled_sql]"
+FROM [temp].[translated_sql]"
 
-extern void (*sqlite3CompiledSql)(const char *zSql, int nSql, const char *zCSql);
+extern void (*sqlite3TransalatedSql)(const char *zSql, int nSql, const char *zCSql);
 
-static sqlite3 *gCompiledSqlDb;
+static sqlite3 *gTranslatedSqlDb;
 static sqlite3_stmt *gInsertStmt;
 
 unsigned get_hash(const char *zSql, size_t nChar){
@@ -101,7 +101,7 @@ void prepare_sql(sqlite3 *db, char *zSql){
   sqlite3_finalize( pStmt );
 }
 
-void compile_sql(const char *zSql, int nSql, const char *zCSql){
+void translate_sql(const char *zSql, int nSql, const char *zCSql){
   unsigned hash=get_hash( zSql,nSql );
   sqlite3_bind_int64( gInsertStmt,1,hash );
   sqlite3_bind_text( gInsertStmt,2,zSql,nSql,SQLITE_STATIC );
@@ -117,7 +117,7 @@ void save_code(sqlite3 *db){
 
   /* Each SQL hash gets saved as a function.
    * This prevents stack overflow when compiling a lot of SQL. */
-  sqlite3_prepare_v2( db,READ_COMPILED_SQL,sizeof(READ_COMPILED_SQL)+1,&pStmt,NULL );
+  sqlite3_prepare_v2( db,READ_TRANSLATED_SQL,sizeof(READ_TRANSLATED_SQL)+1,&pStmt,NULL );
   sqlite3_int64 previous_hash = -1;
   while( sqlite3_step(pStmt)==SQLITE_ROW ){
     sqlite3_int64 hash=sqlite3_column_int64( pStmt,0 );
@@ -168,7 +168,7 @@ void save_code(sqlite3 *db){
     printf( "      if( " SQL_FUNCTION_CALL "==0 ) return 0;\n",hash );
     printf( "      break;\n" );
   }
-  printf( "    default: return 0; /* SQL is not compiled */\n"
+  printf( "    default: return 0; /* SQL is not translated */\n"
           "  }\n"
           "  pParse->zTail=zTail;\n"
           "  return 1;\n"
@@ -180,31 +180,31 @@ void save_code(sqlite3 *db){
 
 void emit_code(){
   sqlite3_finalize( gInsertStmt );
-  sqlite3CompiledSql = NULL;
+  sqlite3TransalatedSql = NULL;
 
   FILE *sqlite_source = freopen("sqlite3.c","a",stdout);
   if( sqlite_source==NULL ) fprintf(stderr,"Unable to open sqlite3.c\n");
-  else save_code( gCompiledSqlDb );
-  sqlite3_close( gCompiledSqlDb );
+  else save_code( gTranslatedSqlDb );
+  sqlite3_close( gTranslatedSqlDb );
 }
 
-void initialize_compiler(){
-  if( sqlite3_open(":memory:", &gCompiledSqlDb)!=SQLITE_OK ){
+void initialize_translator(){
+  if( sqlite3_open(":memory:", &gTranslatedSqlDb)!=SQLITE_OK ){
     fprintf(stderr,"Error: unable to open in-memory database: %s\n",
-      sqlite3_errmsg( gCompiledSqlDb ));
+      sqlite3_errmsg( gTranslatedSqlDb ));
     exit(1);
   }
-  prepare_sql( gCompiledSqlDb,CREATE_TBL_COMPILED_SQL );
-  sqlite3_prepare_v2( gCompiledSqlDb,INSERT_COMPILED_SQL,
-    sizeof( INSERT_COMPILED_SQL )+1,&gInsertStmt,NULL );
+  prepare_sql( gTranslatedSqlDb,CREATE_TBL_TRANSLATED_SQL );
+  sqlite3_prepare_v2( gTranslatedSqlDb,INSERT_TRANSLATED_SQL,
+    sizeof( INSERT_TRANSLATED_SQL )+1,&gInsertStmt,NULL );
 
-  sqlite3CompiledSql = compile_sql;
+  sqlite3TransalatedSql = translate_sql;
   if( atexit(emit_code)!=0 ){
     fprintf( stderr,"Unable to register emit_code.\n" );
   }
 }
 
-/* Usage: compiler db sql ...
+/* Usage: translator db sql ...
  * or line separated SQL via stdin
  */
 int main( int argc,char **argv ){
@@ -234,7 +234,7 @@ int main( int argc,char **argv ){
     prepare_sql( db,DUMMY_SQL );
 #endif /* DISABLE_INTIALISATION */
 
-    initialize_compiler();
+    initialize_translator();
 
     if( argc==2 ){
       /* Read SQL from stdin. Queries are separated by an empty line. */

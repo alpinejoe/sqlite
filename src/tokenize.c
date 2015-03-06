@@ -374,10 +374,10 @@ int sqlite3GetToken(const unsigned char *z, int *tokenType){
 }
 
 #ifdef ENABLE_TRANSLATED_SQL
-int sqlite3ExecuteCompiledSql(Parse *pParse, const char *zSql, char **pzErrMsg);
+int sqlite3ExecuteTranslatedSql(Parse *pParse, const char *zSql, char **pzErrMsg);
 #endif
 #ifdef RUNNING_SQL_TRANSLATOR
-void (*sqlite3CompiledSql)(const char *zSql, int nSql, const char *zCSql) = 0;
+void (*sqlite3TransalatedSql)(const char *zSql, int nSql, const char *zCSql) = 0;
 #endif
 
 /*
@@ -426,7 +426,7 @@ int sqlite3RunParser(Parse *pParse, const char *zSql, char **pzErrMsg){
   pParse->zCSql = sqlite3_mprintf("");
 #endif /* RUNNING_SQL_TRANSLATOR */
 #ifdef ENABLE_TRANSLATED_SQL
-  if( sqlite3ExecuteCompiledSql(pParse, zSql, pzErrMsg)==0 ){
+  if( sqlite3ExecuteTranslatedSql(pParse, zSql, pzErrMsg)==0 ){
 #endif
   while( !db->mallocFailed && zSql[i]!=0 ){
     assert( i>=0 );
@@ -477,8 +477,8 @@ abort_parse:
   }
 #endif
 #ifdef RUNNING_SQL_TRANSLATOR
-  if( sqlite3CompiledSql ){
-    sqlite3CompiledSql(zSql, i, pParse->zCSql);
+  if( sqlite3TransalatedSql ){
+    sqlite3TransalatedSql(zSql, i, pParse->zCSql);
   }
   free(pParse->zCSql);
   pParse->zCSql = NULL;
