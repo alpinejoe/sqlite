@@ -113,7 +113,7 @@ void compile_sql(const char *zSql, int nSql, const char *zCSql){
 void save_code(sqlite3 *db){
   sqlite3_stmt *pStmt=NULL;
 
-  printf( "\n#ifdef ENABLE_COMPILED_SQL\n" );
+  printf( "\n#ifdef ENABLE_TRANSLATED_SQL\n" );
 
   /* Each SQL hash gets saved as a function.
    * This prevents stack overflow when compiling a lot of SQL. */
@@ -175,7 +175,7 @@ void save_code(sqlite3 *db){
           FUNCTION_END
   );
 
-  printf( "#endif /* ENABLE_COMPILED_SQL */\n" );
+  printf( "#endif /* ENABLE_TRANSLATED_SQL */\n" );
 }
 
 void emit_code(){
