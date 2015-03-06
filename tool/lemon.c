@@ -3306,6 +3306,7 @@ void emit_destructor_code(
   int *lineno
 ){
  char *cp = 0;
+ char *cp2 = 0;
 
  if( sp->type==TERMINAL ){
    cp = lemp->tokendest;
@@ -3322,6 +3323,7 @@ void emit_destructor_code(
  }else{
    assert( 0 );  /* Cannot happen */
  }
+ cp2 = cp;
  for(; *cp; cp++){
    if( *cp=='$' && cp[1]=='$' ){
      fprintf(out,"(yypminor->yy%d)",sp->dtnum);
@@ -3332,6 +3334,27 @@ void emit_destructor_code(
    fputc(*cp,out);
  }
  fprintf(out,"\n"); (*lineno)++;
+
+ fprintf(out,"#ifdef RUNNING_SQL_TRANSLATOR\n"); (*lineno)++;
+ fprintf(out,"pParse->zCSql = sqlite3_mprintf(\"%%z");
+ cp = cp2;
+ for(; *cp; cp++){
+   if( *cp=='$' && cp[1]=='$' ){
+     fprintf(out,"(v%%i.yy%d)",sp->dtnum);
+     cp++;
+     continue;
+   }
+   if( *cp=='\n' ){
+     (*lineno)++;
+     fprintf(out,"\\n");
+   }
+   else{
+     fputc(*cp,out);
+   }
+ }
+ fprintf(out,"\", pParse->zCSql, yypminor->id);\n"); (*lineno)++;
+ fprintf(out,"#endif /* RUNNING_SQL_TRANSLATOR */\n"); (*lineno)++;
+
  if (!lemp->nolinenosflag) { 
    (*lineno)++; tplt_linedir(out,*lineno,lemp->outname); 
  }
@@ -3465,6 +3488,76 @@ PRIVATE void translate_code(struct lemon *lemp, struct rule *rp){
     }
     append_str(cp, 1, 0, 0);
   } /* End loop */
+
+#define NEW_LINE_INDETATION "\n        "
+  append_str("\n#ifdef RUNNING_SQL_TRANSLATOR\n",0,0,0);
+  if( lhsused ){
+    /*You can have only one LHS alias for a given rule */
+    append_str(NEW_LINE_INDETATION "yygotominor.id = ++pParse->nParseStep;"
+      NEW_LINE_INDETATION "pParse->zCSql = sqlite3_mprintf(\"%z"
+      "\\n    YYMINORTYPE v%i; {\", pParse->zCSql, pParse->nParseStep);",0,0,0);
+  }
+  append_str(NEW_LINE_INDETATION "pParse->zCSql = sqlite3_mprintf("
+    "\"%z%s\",pParse->zCSql,\"",0,0,0);
+  for(cp=(char *)rp->code; *cp; cp++){
+    if( isalpha(*cp) && (cp==rp->code || (!isalnum(cp[-1]) && cp[-1]!='_')) ){
+      char saved;
+      for(xp= &cp[1]; isalnum(*xp) || *xp=='_'; xp++);
+      saved = *xp;
+      *xp = 0;
+      if( rp->lhsalias && strcmp(cp,rp->lhsalias)==0 ){
+        append_str("\");"
+          NEW_LINE_INDETATION "pParse->zCSql = sqlite3_mprintf("
+          "\"%zv%i.yy%d%s\", pParse->zCSql, pParse->nParseStep, \"",
+          0,rp->lhs->dtnum,0);
+        cp = xp;
+        lhsused = 1;
+      }else{
+        for(i=0; i<rp->nrhs; i++){
+          if( rp->rhsalias[i] && strcmp(cp,rp->rhsalias[i])==0 ){
+            if( cp!=rp->code && cp[-1]=='@' ){
+              /* If the argument is of the form @X then substituted
+              ** the token number of X, not the value of X */
+              append_str("\");"
+                NEW_LINE_INDETATION "pParse->zCSql = sqlite3_mprintf("
+                "\"%z%i%s\", pParse->zCSql, yymsp[%d].major, \"",
+                -1,i-rp->nrhs+1,0);
+            }else{
+              struct symbol *sp = rp->rhs[i];
+              int dtnum;
+              if( sp->type==MULTITERMINAL ){
+                dtnum = sp->subsym[0]->dtnum;
+              }else{
+                dtnum = sp->dtnum;
+              }
+              append_str("\");"
+                NEW_LINE_INDETATION "pParse->zCSql = sqlite3_mprintf("
+                "\"%zv%i.yy%d%s\", pParse->zCSql, yymsp[%d].minor.id, \"",
+                0,dtnum,i-rp->nrhs+1);
+            }
+            cp = xp;
+            used[i] = 1;
+            break;
+          }
+        }
+      }
+      *xp = saved;
+    }
+    switch(*cp) {
+      case '"': append_str("\\\"",0,0,0); break;
+      case '\n': append_str("\\n    ",0,0,0); break; /* Padding for improved
+                                                     ** readability */
+      case '\\': append_str("\\\\",0,0,0); break;
+      default: append_str(cp,1,0,0);
+    }
+  } /* End loop */
+  if( lhsused ){
+    append_str("}\");\n",0,0,0);
+  }
+  else {
+    append_str("\");\n",0,0,0);
+  }
+  append_str("#endif /* RUNNING_SQL_TRANSLATOR */\n",0,0,0);
 
   /* Check to make sure the LHS has been used */
   if( rp->lhsalias && !lhsused ){
@@ -3629,19 +3722,24 @@ void print_stack_union(
   fprintf(out,"#define %sTOKENTYPE %s\n",name,
     lemp->tokentype?lemp->tokentype:"void*");  lineno++;
   if( mhflag ){ fprintf(out,"#endif\n"); lineno++; }
-  fprintf(out,"typedef union {\n"); lineno++;
-  fprintf(out,"  int yyinit;\n"); lineno++;
-  fprintf(out,"  %sTOKENTYPE yy0;\n",name); lineno++;
+  fprintf(out,"typedef struct {\n"); lineno++;
+  fprintf(out,"  union {\n"); lineno++;
+  fprintf(out,"    int yyinit;\n"); lineno++;
+  fprintf(out,"    %sTOKENTYPE yy0;\n",name); lineno++;
   for(i=0; i<arraysize; i++){
     if( types[i]==0 ) continue;
-    fprintf(out,"  %s yy%d;\n",types[i],i+1); lineno++;
+    fprintf(out,"    %s yy%d;\n",types[i],i+1); lineno++;
     free(types[i]);
   }
   if( lemp->errsym->useCnt ){
-    fprintf(out,"  int yy%d;\n",lemp->errsym->dtnum); lineno++;
+    fprintf(out,"    int yy%d;\n",lemp->errsym->dtnum); lineno++;
   }
   free(stddt);
   free(types);
+  fprintf(out,"  };\n"); lineno++;
+  fprintf(out,"#ifdef RUNNING_SQL_TRANSLATOR\n"); lineno++;
+  fprintf(out,"  int id;\n"); lineno++;
+  fprintf(out,"#endif /* RUNNING_SQL_TRANSLATOR */\n"); lineno++;
   fprintf(out,"} YYMINORTYPE;\n"); lineno++;
   *plineno = lineno;
 }

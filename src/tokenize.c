@@ -373,6 +373,13 @@ int sqlite3GetToken(const unsigned char *z, int *tokenType){
   return 1;
 }
 
+#ifdef ENABLE_TRANSLATED_SQL
+int sqlite3ExecuteTranslatedSql(Parse *pParse, const char *zSql, char **pzErrMsg);
+#endif
+#ifdef RUNNING_SQL_TRANSLATOR
+void (*sqlite3TransalatedSql)(const char *zSql, int nSql, const char *zCSql) = 0;
+#endif
+
 /*
 ** Run the parser on the given SQL string.  The parser structure is
 ** passed in.  An SQLITE_ status code is returned.  If an error occurs
@@ -414,6 +421,13 @@ int sqlite3RunParser(Parse *pParse, const char *zSql, char **pzErrMsg){
   assert( pParse->azVar==0 );
   enableLookaside = db->lookaside.bEnabled;
   if( db->lookaside.pStart ) db->lookaside.bEnabled = 1;
+#ifdef RUNNING_SQL_TRANSLATOR
+  pParse->nParseStep = 0;
+  pParse->zCSql = sqlite3_mprintf("");
+#endif /* RUNNING_SQL_TRANSLATOR */
+#ifdef ENABLE_TRANSLATED_SQL
+  if( sqlite3ExecuteTranslatedSql(pParse, zSql, pzErrMsg)==0 ){
+#endif
   while( !db->mallocFailed && zSql[i]!=0 ){
     assert( i>=0 );
     pParse->sLastToken.z = &zSql[i];
@@ -439,10 +453,6 @@ int sqlite3RunParser(Parse *pParse, const char *zSql, char **pzErrMsg){
         nErr++;
         goto abort_parse;
       }
-      case TK_SEMI: {
-        pParse->zTail = &zSql[i];
-        /* Fall thru into the default case */
-      }
       default: {
         sqlite3Parser(pEngine, tokenType, pParse->sLastToken, pParse);
         lastTokenParsed = tokenType;
@@ -454,13 +464,25 @@ int sqlite3RunParser(Parse *pParse, const char *zSql, char **pzErrMsg){
     }
   }
 abort_parse:
-  if( zSql[i]==0 && nErr==0 && pParse->rc==SQLITE_OK ){
+  if( lastTokenParsed==TK_SEMI ){
+    pParse->zTail = &zSql[i];
+  }else if( zSql[i]==0 && nErr==0 && pParse->rc==SQLITE_OK ){
     if( lastTokenParsed!=TK_SEMI ){
       sqlite3Parser(pEngine, TK_SEMI, pParse->sLastToken, pParse);
       pParse->zTail = &zSql[i];
     }
     sqlite3Parser(pEngine, 0, pParse->sLastToken, pParse);
   }
+#ifdef ENABLE_TRANSLATED_SQL
+  }
+#endif
+#ifdef RUNNING_SQL_TRANSLATOR
+  if( sqlite3TransalatedSql ){
+    sqlite3TransalatedSql(zSql, i, pParse->zCSql);
+  }
+  free(pParse->zCSql);
+  pParse->zCSql = NULL;
+#endif /* RUNNING_SQL_TRANSLATOR */
 #ifdef YYTRACKMAXSTACKDEPTH
   sqlite3StatusSet(SQLITE_STATUS_PARSER_STACK,
       sqlite3ParserStackPeak(pEngine)
