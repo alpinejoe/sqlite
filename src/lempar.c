@@ -757,7 +757,7 @@ void Parse(
   do{
     yyact = yy_find_shift_action(yypParser,(YYCODETYPE)yymajor);
     if( yyact<YYNSTATE ){
-#ifdef RUNNING_SQL_COMPILER
+#ifdef RUNNING_SQL_TRANSLATOR
       yyminorunion.id = ++pParse->nParseStep;
       pParse->zCSql = sqlite3_mprintf("%z\n    YYMINORTYPE v%i; "
         "pParse->sLastToken.z = zSql+%d; pParse->sLastToken.n = %d; "
@@ -765,7 +765,7 @@ void Parse(
         pParse->zCSql, pParse->nParseStep,
         yyminorunion.yy0.z-pParse->zTail, yyminorunion.yy0.n,
         pParse->nParseStep);
-#endif /* RUNNING_SQL_COMPILER */
+#endif /* RUNNING_SQL_TRANSLATOR */
       yy_shift(yypParser,yyact,yymajor,&yyminorunion);
       yypParser->yyerrcnt--;
       yymajor = YYNOCODE;

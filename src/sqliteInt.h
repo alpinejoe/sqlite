@@ -2648,10 +2648,10 @@ struct Parse {
   Table *pZombieTab;        /* List of Table objects to delete after code gen */
   TriggerPrg *pTriggerPrg;  /* Linked list of coded triggers */
   With *pWith;              /* Current WITH clause, or NULL */
-#ifdef RUNNING_SQL_COMPILER
+#ifdef RUNNING_SQL_TRANSLATOR
   int nParseStep;           /* Generate new variable names when compiling SQL */
   char *zCSql;              /* Compiled SQL in C */
-#endif /* RUNNING_SQL_COMPILER */
+#endif /* RUNNING_SQL_TRANSLATOR */
 };
 
 /*

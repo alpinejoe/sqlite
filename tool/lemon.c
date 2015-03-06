@@ -3335,7 +3335,7 @@ void emit_destructor_code(
  }
  fprintf(out,"\n"); (*lineno)++;
 
- fprintf(out,"#ifdef RUNNING_SQL_COMPILER\n"); (*lineno)++;
+ fprintf(out,"#ifdef RUNNING_SQL_TRANSLATOR\n"); (*lineno)++;
  fprintf(out,"pParse->zCSql = sqlite3_mprintf(\"%%z");
  cp = cp2;
  for(; *cp; cp++){
@@ -3353,7 +3353,7 @@ void emit_destructor_code(
    }
  }
  fprintf(out,"\", pParse->zCSql, yypminor->id);\n"); (*lineno)++;
- fprintf(out,"#endif /* RUNNING_SQL_COMPILER */\n"); (*lineno)++;
+ fprintf(out,"#endif /* RUNNING_SQL_TRANSLATOR */\n"); (*lineno)++;
 
  if (!lemp->nolinenosflag) { 
    (*lineno)++; tplt_linedir(out,*lineno,lemp->outname); 
@@ -3490,7 +3490,7 @@ PRIVATE void translate_code(struct lemon *lemp, struct rule *rp){
   } /* End loop */
 
 #define NEW_LINE_INDETATION "\n        "
-  append_str("\n#ifdef RUNNING_SQL_COMPILER\n",0,0,0);
+  append_str("\n#ifdef RUNNING_SQL_TRANSLATOR\n",0,0,0);
   if( lhsused ){
     /*You can have only one LHS alias for a given rule */
     append_str(NEW_LINE_INDETATION "yygotominor.id = ++pParse->nParseStep;"
@@ -3557,7 +3557,7 @@ PRIVATE void translate_code(struct lemon *lemp, struct rule *rp){
   else {
     append_str("\");\n",0,0,0);
   }
-  append_str("#endif /* RUNNING_SQL_COMPILER */\n",0,0,0);
+  append_str("#endif /* RUNNING_SQL_TRANSLATOR */\n",0,0,0);
 
   /* Check to make sure the LHS has been used */
   if( rp->lhsalias && !lhsused ){
@@ -3737,9 +3737,9 @@ void print_stack_union(
   free(stddt);
   free(types);
   fprintf(out,"  };\n"); lineno++;
-  fprintf(out,"#ifdef RUNNING_SQL_COMPILER\n"); lineno++;
+  fprintf(out,"#ifdef RUNNING_SQL_TRANSLATOR\n"); lineno++;
   fprintf(out,"  int id;\n"); lineno++;
-  fprintf(out,"#endif /* RUNNING_SQL_COMPILER */\n"); lineno++;
+  fprintf(out,"#endif /* RUNNING_SQL_TRANSLATOR */\n"); lineno++;
   fprintf(out,"} YYMINORTYPE;\n"); lineno++;
   *plineno = lineno;
 }

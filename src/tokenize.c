@@ -373,10 +373,10 @@ int sqlite3GetToken(const unsigned char *z, int *tokenType){
   return 1;
 }
 
-#ifdef ENABLE_COMPILED_SQL
+#ifdef ENABLE_TRANSLATED_SQL
 int sqlite3ExecuteCompiledSql(Parse *pParse, const char *zSql, char **pzErrMsg);
 #endif
-#ifdef RUNNING_SQL_COMPILER
+#ifdef RUNNING_SQL_TRANSLATOR
 void (*sqlite3CompiledSql)(const char *zSql, int nSql, const char *zCSql) = 0;
 #endif
 
@@ -421,11 +421,11 @@ int sqlite3RunParser(Parse *pParse, const char *zSql, char **pzErrMsg){
   assert( pParse->azVar==0 );
   enableLookaside = db->lookaside.bEnabled;
   if( db->lookaside.pStart ) db->lookaside.bEnabled = 1;
-#ifdef RUNNING_SQL_COMPILER
+#ifdef RUNNING_SQL_TRANSLATOR
   pParse->nParseStep = 0;
   pParse->zCSql = sqlite3_mprintf("");
-#endif /* RUNNING_SQL_COMPILER */
-#ifdef ENABLE_COMPILED_SQL
+#endif /* RUNNING_SQL_TRANSLATOR */
+#ifdef ENABLE_TRANSLATED_SQL
   if( sqlite3ExecuteCompiledSql(pParse, zSql, pzErrMsg)==0 ){
 #endif
   while( !db->mallocFailed && zSql[i]!=0 ){
@@ -473,16 +473,16 @@ abort_parse:
     }
     sqlite3Parser(pEngine, 0, pParse->sLastToken, pParse);
   }
-#ifdef ENABLE_COMPILED_SQL
+#ifdef ENABLE_TRANSLATED_SQL
   }
 #endif
-#ifdef RUNNING_SQL_COMPILER
+#ifdef RUNNING_SQL_TRANSLATOR
   if( sqlite3CompiledSql ){
     sqlite3CompiledSql(zSql, i, pParse->zCSql);
   }
   free(pParse->zCSql);
   pParse->zCSql = NULL;
-#endif /* RUNNING_SQL_COMPILER */
+#endif /* RUNNING_SQL_TRANSLATOR */
 #ifdef YYTRACKMAXSTACKDEPTH
   sqlite3StatusSet(SQLITE_STATUS_PARSER_STACK,
       sqlite3ParserStackPeak(pEngine)
