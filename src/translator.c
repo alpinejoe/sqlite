@@ -16,7 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sqlite3.h>
+#include "sqlite3.h"
 
 #define FUNCTION_START "\n" \
   "SQLITE_PRIVATE int sqlite3ExecuteTranslatedSql(Parse *pParse, const char *zSql, char **pzErrMsg){\n"
@@ -55,7 +55,9 @@ static sqlite3_stmt *gInsertStmt;
 unsigned get_hash(const char *zSql, size_t nChar){
   /* FNV hash generator */
   unsigned hash=0;
-  for( size_t i=0;i<nChar;++i ){
+  size_t i;
+
+  for( i=0;i<nChar;++i ){
     hash^=zSql[i];
     hash+=(hash<<1)+(hash<<4)+(hash<<7)+(hash<<8)+(hash<<24);
   }
@@ -63,8 +65,8 @@ unsigned get_hash(const char *zSql, size_t nChar){
 }
 
 void escape_sql(const unsigned char *zSql, size_t nChar, char *zEscaped){
-  size_t j=0;
-  for( size_t i=0;i<nChar;++i ){
+  size_t i, j=0;
+  for( i=0;i<nChar;++i ){
     switch( zSql[i] ){
       case '"':
       case '\\':
@@ -258,7 +260,8 @@ int main( int argc,char **argv ){
       free( sql );
     }
     else{
-      for( int i=2; i<argc; ++i ){
+      int i;
+      for( i=2;i<argc;++i ){
         prepare_sql( db,argv[i] );
       }
     }

@@ -456,6 +456,10 @@ int sqlite3RunParser(Parse *pParse, const char *zSql, char **pzErrMsg){
       default: {
         sqlite3Parser(pEngine, tokenType, pParse->sLastToken, pParse);
         lastTokenParsed = tokenType;
+#ifdef RUNNING_SQL_TRANSLATOR
+        pParse->zCSql = sqlite3_mprintf("%z\n    if( pParse->rc!=SQLITE_OK ) return 1;",
+          pParse->zCSql);
+#endif /* RUNNING_SQL_TRANSLATOR */
         if( pParse->rc!=SQLITE_OK ){
           goto abort_parse;
         }
@@ -480,7 +484,7 @@ abort_parse:
   if( sqlite3TransalatedSql ){
     sqlite3TransalatedSql(zSql, i, pParse->zCSql);
   }
-  free(pParse->zCSql);
+  sqlite3_free(pParse->zCSql);
   pParse->zCSql = NULL;
 #endif /* RUNNING_SQL_TRANSLATOR */
 #ifdef YYTRACKMAXSTACKDEPTH
